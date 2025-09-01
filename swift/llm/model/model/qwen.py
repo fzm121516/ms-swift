@@ -1040,3 +1040,120 @@ register_model(
         get_model_tokenizer_with_flash_attn,
         architectures=['Qwen3ForCausalLM'],
         task_type='reranker'))
+
+
+
+# import torch
+# import torch.nn as nn
+# from transformers import Qwen2_5_VLForConditionalGeneration,Qwen2_5_VLModel
+# from typing import Optional, Union, Any
+
+
+# class Qwen2_5_VLModel_Custom(Qwen2_5_VLModel):
+#     def __init__(self, config):
+#         super().__init__(config)
+#         self._hook_features = []
+#         print("Currently using a custom Qwen2 model")
+#         print(hasattr(Qwen2_5_VLModel, "get_image_features"))
+#         print("Currently using a custom Qwen2 model")
+#         print("Currently using a custom Qwen2 model")
+#         print("Currently using a custom Qwen2 model")
+#         print("Currently using a custom Qwen2 model")
+#         print("Currently using a custom Qwen2 model")
+#         print("Currently using a custom Qwen2 model")
+#     def _get_hook_output(self, module, input, output):
+#         # 保存每层 block 的输出
+#         self._hook_features.append(output)
+
+#     def get_image_features(self, pixel_values: torch.FloatTensor, image_grid_thw: Optional[torch.LongTensor] = None):
+#         """
+#         获取图像 embedding，使用 7、15、23、31 层输出分别过 merger，再平均作为最终输出
+#         """
+#         pixel_values = pixel_values.type(self.visual.dtype)
+#         self._hook_features = []
+
+#         # 注册 hook 到 block 获取输出
+#         layers_to_hook = [7, 15, 23, 31]
+#         hooks = []
+#         for idx in layers_to_hook:
+#             block = self.visual.blocks[idx]
+#             hooks.append(block.register_forward_hook(self._get_hook_output))
+
+#         def merger_hook(module, input, output):
+#             if self._hook_features:
+#                 merged_outputs = []
+#                 for feat in self._hook_features:
+#                     feat_out = module.forward(feat)
+#                     if isinstance(feat_out, tuple):  # 如果 forward 返回 tuple
+#                         feat_out = feat_out[0]       # 只取 hidden_states
+#                     merged_outputs.append(feat_out)
+#                 return torch.stack(merged_outputs, dim=0).mean(dim=0)
+#             return output
+
+
+#         # 注册 merger hook
+#         merger_handle = self.visual.merger.register_forward_hook(merger_hook)
+
+#         # 前向
+#         image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
+
+#         # 移除 hooks
+#         for h in hooks:
+#             h.remove()
+#         merger_handle.remove()
+#         self._hook_features = []
+
+#         return image_embeds
+
+#     # 继承自原始 ConditionalGeneration 类
+# class AIGI_RFT_Custom(Qwen2_5_VLForConditionalGeneration):
+#     _checkpoint_conversion_mapping = {
+#         "^visual": "model.visual",
+#         r"^model(?!\.(language_model|visual))": "model.language_model",
+#     }
+#     _tied_weights_keys = ["lm_head.weight"]
+
+#     def __init__(self, config):
+#         super().__init__(config)
+#         self.model = Qwen2_5_VLModel_Custom(config)
+#         print("Currently using a custom Qwen2vl model")
+#         print("Currently using a custom Qwen2vl model")
+#         print("Currently using a custom Qwen2vl model")
+#         print("Currently using a custom Qwen2vl model")
+#         print("Currently using a custom Qwen2vl model")
+#         print("Currently using a custom Qwen2vl model")
+
+
+
+
+# def get_model_tokenizer_AIGI_RFT_Custom(*args, **kwargs):
+#     kwargs['automodel_class'] = kwargs['automodel_class']
+#     model, tokenizer = get_model_tokenizer_multimodal(*args, **kwargs)
+#     if model is not None:
+#         base_model = model
+#         if hasattr(base_model.model, 'embed_tokens'):
+#             embed_tokens = base_model.model.embed_tokens
+#         else:
+#             embed_tokens = base_model.model.language_model.embed_tokens
+#         patch_output_clone(embed_tokens)
+#         patch_output_to_input_device(embed_tokens)
+#         patch_get_input_embeddings(base_model.visual, 'patch_embed')
+
+#     from qwen_vl_utils import vision_process
+#     patch_qwen_vl_utils(vision_process)
+#     return model, tokenizer
+
+
+
+
+# register_model(
+#     ModelMeta(
+#         model_type='aigi_custom',
+#         model_groups=[
+#             ModelGroup([Model('/root/zgp2/fanzheming/AIGI_RFT_Custom')])
+#         ],
+#         template=TemplateType.qwen2_5_vl,
+#         get_function=get_model_tokenizer_AIGI_RFT_Custom,
+#         model_arch=ModelArch.custom,
+#         architectures=['AIGI_RFT_Custom'],
+#         tags=['vision', 'video']))

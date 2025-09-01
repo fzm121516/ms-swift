@@ -87,6 +87,18 @@ class MathFormat(ORM):
         pattern = r'^<think>.*?</think>\s*<answer>.*?</answer>(?![\s\S])'
         matches = [re.match(pattern, content, re.DOTALL | re.MULTILINE) for content in completions]
         return [1.0 if match else 0.0 for match in matches]
+    
+
+
+class MathFormatonlyanswer(ORM):
+
+    def __call__(self, completions, **kwargs) -> List[float]:
+        """Reward function that checks if the completion has an <answer>...</answer> format."""
+        pattern = r'<answer>.*?</answer>'
+        matches = [re.search(pattern, content, re.DOTALL | re.MULTILINE) for content in completions]
+        return [1.0 if match else 0.0 for match in matches]
+
+
 
 
 class CountdownORM(ORM):
@@ -702,6 +714,136 @@ class ToolUseCorrectnessReward(ORM):
         return rewards
 
 
+from swift.plugin import ORM, orms
+
+class CustomLengthRewardFunction(ORM):
+    def __call__(self, completions, **kwargs):
+        rewards = []
+        ideal_min = 200
+        ideal_max = 400
+        k = 0.002  # 惩罚系数，可调
+        for completion in completions:
+            length = len(completion)
+            if ideal_min <= length <= ideal_max:
+                rewards.append(0)  # 合适范围奖励
+            else:
+                # 线性惩罚
+                if length < ideal_min:
+                    reward = -k * (ideal_min - length)
+                else:
+                    reward = -k * (length - ideal_max)
+                rewards.append(reward)
+        return rewards
+
+
+
+class MultiModalAccuracyAndFormatORM(ORM):
+
+    def __call__(self, completions, solution, **kwargs) -> List[float]:
+        """
+        Reward function that checks if the completion is correct *and* in the correct format.
+        Args:
+            completions (list[str]): Generated outputs
+            solution (list[str]): Ground Truths.
+
+        Returns:
+            list[float]: Reward scores
+        """
+        import re
+        from math_verify import parse, verify
+
+        rewards = []
+        pattern = r'^<think>.*?</think>\s*<answer>.*?</answer>(?![\s\S])'
+
+        for content, sol in zip(completions, solution):
+            reward = 0.0
+
+            # 先检查格式
+            format_ok = re.match(pattern, content, re.DOTALL | re.MULTILINE) is not None
+
+            if format_ok:
+                # Try symbolic verification first
+                try:
+                    answer = parse(content)
+                    if float(verify(answer, parse(sol))) > 0:
+                        reward = 1.0
+                except Exception:
+                    pass  # Continue to next verification method if this fails
+
+                # If symbolic verification failed, try string matching
+                if reward == 0.0:
+                    try:
+                        # Extract answer from solution if it has think/answer tags
+                        sol_match = re.search(r'<answer>(.*?)</answer>', sol)
+                        ground_truth = sol_match.group(1).strip() if sol_match else sol.strip()
+
+                        # Extract answer from content if it has think/answer tags
+                        content_match = re.search(r'<answer>(.*?)</answer>', content)
+                        student_answer = content_match.group(1).strip() if content_match else content.strip()
+
+                        # Compare the extracted answers
+                        if student_answer == ground_truth:
+                            reward = 1.0
+                    except Exception:
+                        pass  # Keep reward as 0.0 if both methods fail
+
+            rewards.append(reward)
+        return rewards
+
+class MultiModalAccuracyORMNew(ORM):
+
+    def __call__(self, completions, solution, **kwargs) -> List[float]:
+        """
+        Reward function that checks if the completion is correct.
+        Args:
+            completions (list[str]): Generated outputs
+            solution (list[str]): Ground Truths.
+
+        Returns:
+            list[float]: Reward scores
+        """
+        rewards = []
+        from math_verify import parse, verify
+        import re
+
+        for content, sol in zip(completions, solution):
+            reward = -1.0  # 默认是答错 → -1.0
+
+            # Try symbolic verification first
+            try:
+                answer = parse(content)
+                if float(verify(answer, parse(sol))) > 0:
+                    reward = 1.0
+            except Exception:
+                pass  # Continue to next verification method if this fails
+
+            # If symbolic verification failed, try string matching
+            if reward == -1.0:
+                try:
+                    # Extract answer from solution if it has think/answer tags
+                    sol_match = re.search(r'<answer>(.*?)</answer>', sol)
+                    ground_truth = sol_match.group(1).strip() if sol_match else sol.strip()
+
+                    # Extract answer from content if it has think/answer tags
+                    content_match = re.search(r'<answer>(.*?)</answer>', content)
+                    student_answer = content_match.group(1).strip() if content_match else content.strip()
+
+                    # Compare the extracted answers
+                    if student_answer == ground_truth:
+                        reward = 1.0
+                except Exception:
+                    pass  # Keep reward as -1.0 if both methods fail
+            rewards.append(reward)
+        return rewards
+
+
+
+
+
+orms['external_length'] = CustomLengthRewardFunction
+orms['external_acc_new'] = MultiModalAccuracyORMNew
+
+orms['external_math_format_only_answer'] = MathFormatonlyanswer
 orms['external_math_acc'] = MathAccuracy
 orms['external_math_format'] = MathFormat
 orms['external_countdown'] = CountdownORM

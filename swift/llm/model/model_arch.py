@@ -647,5 +647,6 @@ register_model_arch(MultiModelKeys(
 ))
 
 
+
 def get_model_arch(arch_name: Optional[str]) -> Optional[MultiModelKeys]:
     return MODEL_ARCH_MAPPING.get(arch_name)
