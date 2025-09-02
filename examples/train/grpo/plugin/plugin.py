@@ -88,6 +88,17 @@ class MathFormat(ORM):
         matches = [re.match(pattern, content, re.DOTALL | re.MULTILINE) for content in completions]
         return [1.0 if match else 0.0 for match in matches]
     
+class CustomMathFormat(ORM):
+
+    def __call__(self, completions, **kwargs) -> List[float]:
+        """Reward function that checks if the completion has <description>, <think>, and <answer> in order."""
+        pattern = (
+            r'^<description>.*?</description>\s*'
+            r'<think>.*?</think>\s*'
+            r'<answer>.*?</answer>(?![\s\S])'
+        )
+        matches = [re.match(pattern, content, re.DOTALL | re.MULTILINE) for content in completions]
+        return [1.0 if match else 0.0 for match in matches]
 
 
 class MathFormatonlyanswer(ORM):
@@ -846,6 +857,7 @@ orms['external_acc_new'] = MultiModalAccuracyORMNew
 orms['external_math_format_only_answer'] = MathFormatonlyanswer
 orms['external_math_acc'] = MathAccuracy
 orms['external_math_format'] = MathFormat
+orms['custom_math_format'] = CustomMathFormat
 orms['external_countdown'] = CountdownORM
 orms['external_r1v_acc'] = MultiModalAccuracyORM
 orms['external_code_reward'] = CodeReward
