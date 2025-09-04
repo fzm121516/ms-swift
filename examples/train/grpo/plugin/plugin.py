@@ -88,17 +88,32 @@ class MathFormat(ORM):
         matches = [re.match(pattern, content, re.DOTALL | re.MULTILINE) for content in completions]
         return [1.0 if match else 0.0 for match in matches]
     
-class CustomMathFormat(ORM):
+class CustomMathFormat2(ORM):
 
     def __call__(self, completions, **kwargs) -> List[float]:
-        """Reward function that checks if the completion has <description>, <think>, and <answer> in order."""
+        """Reward function that checks if the completion has <description>, <judge>, <think>, and <answer> in order."""
         pattern = (
             r'^<description>.*?</description>\s*'
+            r'<judge>.*?</judge>\s*'
             r'<think>.*?</think>\s*'
             r'<answer>.*?</answer>(?![\s\S])'
         )
         matches = [re.match(pattern, content, re.DOTALL | re.MULTILINE) for content in completions]
         return [1.0 if match else 0.0 for match in matches]
+
+class CustomMathFormat(ORM):
+    def __call__(self, completions, **kwargs) -> List[float]:
+        """
+        Reward function that checks if the completion has <judge>, <think>, and <answer> in order.
+        """
+        pattern = (
+            r'<judge>.*?</judge>\s*'
+            r'<think>.*?</think>\s*'
+            r'<answer>.*?</answer>'
+        )
+        matches = [re.search(pattern, content, re.DOTALL | re.MULTILINE) for content in completions]
+        return [1.0 if match else 0.0 for match in matches]
+
 
 
 class MathFormatonlyanswer(ORM):
@@ -204,6 +219,37 @@ class MultiModalAccuracyORM(ORM):
                         reward = 1.0
                 except Exception:
                     pass  # Keep reward as 0.0 if both methods fail
+            rewards.append(reward)
+        return rewards
+
+class MultiModalAccuracyORM2(ORM):
+
+    def __call__(self, completions, solution, **kwargs) -> List[float]:
+        """
+        Reward function that checks if the <judge> tag content matches the ground truth.
+        Args:
+            completions (list[str]): Generated outputs
+            solution (list[str]): Ground Truths.
+
+        Returns:
+            list[float]: Reward scores (0.5 if correct, else 0.0)
+        """
+        rewards = []
+        for content, sol in zip(completions, solution):
+            reward = 0.0
+            try:
+                # Extract ground truth answer
+                sol_match = re.search(r'<answer>(.*?)</answer>', sol)
+                ground_truth = sol_match.group(1).strip() if sol_match else sol.strip()
+
+                # Extract student judge
+                judge_match = re.search(r'<judge>(.*?)</judge>', content)
+                student_judge = judge_match.group(1).strip() if judge_match else None
+
+                if student_judge == ground_truth:
+                    reward = 0.5
+            except Exception:
+                pass
             rewards.append(reward)
         return rewards
 
@@ -860,6 +906,7 @@ orms['external_math_format'] = MathFormat
 orms['custom_math_format'] = CustomMathFormat
 orms['external_countdown'] = CountdownORM
 orms['external_r1v_acc'] = MultiModalAccuracyORM
+orms['external_r1v_acc2'] = MultiModalAccuracyORM2
 orms['external_code_reward'] = CodeReward
 orms['external_code_format'] = CodeFormat
 orms['external_code_reward_by_judge0'] = CodeRewardByJudge0
